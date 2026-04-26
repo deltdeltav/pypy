@@ -41,8 +41,17 @@ UNITS = {
 }
 
 SHOP_UNITS = {
-    'laser':  {'name': 'LASER', 'cost_crystals': 5,  'cost': 900, 'dmg': 80, 'range': 8, 'rate': 40, 'color': (255, 0, 255), 'type': 'beam'},
-    'missile':{'name': 'MISSILE','cost_crystals': 12, 'cost': 1500,'dmg': 300,'range': 10,'rate': 200,'color': (255, 100, 0), 'type': 'aoe'}
+    'laser':  {'name': 'LASER',   'cost_crystals': 5,  'cost': 900,  'dmg': 80,  'range': 8,  'rate': 40,  'color': (255, 0, 255), 'type': 'beam'},
+    'missile':{'name': 'MISSILE', 'cost_crystals': 12, 'cost': 1500, 'dmg': 300, 'range': 10, 'rate': 200, 'color': (255, 100, 0), 'type': 'aoe'},
+    'frost':  {'name': 'FROST',   'cost_crystals': 20, 'cost': 2200, 'dmg': 15,  'range': 6,  'rate': 15,  'color': (0, 220, 255), 'type': 'slow'},
+    'tesla':  {'name': 'TESLA',   'cost_crystals': 35, 'cost': 3500, 'dmg': 40,  'range': 7,  'rate': 5,   'color': (200, 200, 255), 'type': 'chain'},
+    'nuke':   {'name': 'NUKE',    'cost_crystals': 50, 'cost': 5000, 'dmg': 1000,'range': 4,  'rate': 300, 'color': (255, 50, 50),  'type': 'nuke'},
+    'hive':   {'name': 'HIVE',    'cost_crystals': 60, 'cost': 6000, 'dmg': 10,  'range': 9,  'rate': 2,   'color': (255, 255, 0), 'type': 'swarm'},
+    'g_sniper': {'name': 'G-SNIPER', 'cost_crystals': 80, 'cost': 8000, 'dmg': 500, 'range': 20, 'rate': 120, 'color': (255, 215, 0), 'type': 'pierce'},
+    'cannon':   {'name': 'CANNON',   'cost_crystals': 90, 'cost': 9000, 'dmg': 150, 'range': 5,  'rate': 60,  'color': (100, 100, 100), 'type': 'knockback'},
+    'healer':   {'name': 'HEALER',   'cost_crystals': 100,'cost': 10000,'dmg': 0,   'range': 6,  'rate': 30,  'color': (0, 255, 100), 'type': 'heal'},
+    'orbital':  {'name': 'ORBITAL',  'cost_crystals': 120,'cost': 12000,'dmg': 2000,'range': 15, 'rate': 400, 'color': (255, 255, 255), 'type': 'strike'},
+    'void':     {'name': 'VOID',     'cost_crystals': 150,'cost': 15000,'dmg': 50,  'range': 8,  'rate': 10,  'color': (50, 0, 100),  'type': 'pull'}
 }
 
 ENEMIES = {
