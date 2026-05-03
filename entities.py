@@ -176,7 +176,6 @@ class Tower:
                 fx.spawn_explosion(target.screen_x, target.screen_y, (150,150,150), count=10)
 
             elif u_type == 'heal': # HEALER
-                money += 5 
                 fx.spawn_gold_sparks(self.screen_x, self.screen_y-15)
 
             elif u_type == 'strike': # ORBITAL
