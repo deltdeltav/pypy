@@ -19,7 +19,11 @@ class Colors:
     GOLD = (255, 210, 0)
     CRYSTAL = (0, 200, 255)
     GREEN = (0, 200, 100)
+    BLUE = (0, 100, 255)
     RED = (200, 50, 50)
+    VOID_PURPLE = (138, 43, 226)
+    HEALER_GOLD = (255, 215, 0)
+    TESLA_CYAN = (0, 255, 255)
     
     ZOMBIE_NORMAL = (80, 180, 80)
     ZOMBIE_RUNNER = (220, 80, 80)
@@ -75,3 +79,19 @@ UPGRADE_COSTS = {
 }
 
 LOCATIONS = [{'bg': Colors.BG_SUMMER}, {'bg': Colors.BG_MOUNTAIN}, {'bg': Colors.BG_WINTER}]
+
+# --- ЭНЕРГИЯ ---
+START_ENERGY = 100
+MAX_ENERGY = 500
+ENERGY_REGEN = 0.5  # Единиц энергии в кадр (~30 в секунду)
+
+# --- ПРОКАЧКА ЭНЕРГИИ ---
+# Стоимость каждого уровня (уровень 0 -> 1, 1 -> 2 и т.д.)
+ENERGY_UPGRADE_COSTS = [500, 1500, 4000, 10000] 
+# Бонус к максимуму энергии за каждый уровень (+100, +200...)
+ENERGY_UPGRADE_BONUS = [100, 200, 400, 800]
+
+# --- ТЕМНАЯ МАТЕРИЯ (для Void) ---
+START_DARK_MATTER = 50
+MAX_DARK_MATTER = 200
+DARK_MATTER_REGEN = 0.2 # Медленная регенерация
