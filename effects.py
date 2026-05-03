@@ -54,7 +54,13 @@ class EffectsManager:
     def spawn_explosion(self, x, y, color, count=15):
         for _ in range(count):
             self.particles.append(Particle(x, y, color, random.uniform(1, 5), random.randint(20, 40), random.randint(3, 8)))
-
+    
+    def spawn_gold_sparks(self, x, y, count=10):
+        """Эффект золотых искр"""
+        for _ in range(count):
+            # Цвет золота: (255, 215, 0)
+            self.particles.append(Particle(x, y, (255, 215, 0), random.uniform(1, 3), random.randint(10, 20), random.randint(2, 4)))
+    
     def spawn_flame_stream(self, x1, y1, x2, y2):
         steps = 5
         for i in range(steps):
