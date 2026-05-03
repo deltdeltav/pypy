@@ -1,4 +1,4 @@
-import pygame, sys, random
+import pygame, sys, random, math
 from settings import *
 from engine import draw_tile_3d, from_iso, to_iso
 from entities import Tower, Enemy, Projectile
@@ -13,7 +13,12 @@ clock = pygame.time.Clock()
 font = pygame.font.SysFont('consolas', 18, bold=True)
 font_big = pygame.font.SysFont('consolas', 40, bold=True)
 
+# --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ---
 money, crystals = START_MONEY, START_CRYSTALS
+energy = START_ENERGY
+max_energy = MAX_ENERGY
+dark_matter = START_DARK_MATTER
+max_dark_matter = MAX_DARK_MATTER
 wave, lives = 1, 20
 cam_x, cam_y = W//2, H//3
 COLS, ROWS = 22, 16
@@ -24,14 +29,19 @@ selected_unit, dragging, last_mouse = 'soldier', False, (0,0)
 game_state, mega_boss_killed = 'playing', False
 menu_open, menu_tab = False, 0
 shop_scroll = 0
-unit_scroll = 0 # Индекс начала страницы (0, 5, 10...)
+unit_scroll = 0
+upgrade_scroll = 0
+
+# Словарь прокачки (добавлен energy_cap)
+global_upgrades = {'dmg': 0, 'rate': 0, 'hp': 0, 'income': 0, 'capacity': 0, 'energy_cap': 0}
 
 fx = EffectsManager()
 
 def reset():
-    global money, crystals, wave, lives, cam_x, cam_y, path, grid_map
+    global money, crystals, energy, max_energy, dark_matter, max_dark_matter
+    global wave, lives, cam_x, cam_y, path, grid_map
     global towers, enemies, projectiles, spawn_timer, wave_active, enemies_to_spawn, boss_wave
-    global game_state, mega_boss_killed, menu_open, menu_tab, shop_scroll, unit_scroll
+    global game_state, mega_boss_killed, menu_open, menu_tab, shop_scroll, unit_scroll, upgrade_scroll
     
     saved = load_game()
     crystals = saved['crystals']
@@ -39,12 +49,21 @@ def reset():
         if key in SHOP_UNITS and key not in UNITS:
             UNITS[key] = SHOP_UNITS[key]
     
-    money, wave, lives = START_MONEY, 1, 20
+    money, crystals, energy = START_MONEY, START_CRYSTALS, START_ENERGY
+    max_energy = MAX_ENERGY
+    dark_matter = START_DARK_MATTER
+    max_dark_matter = MAX_DARK_MATTER
+    
+    wave, lives = 1, 20
     cam_x, cam_y = W//2, H//3
     path, grid_map = generate_path(COLS, ROWS)
     towers, enemies, projectiles = [], [], []
     spawn_timer, wave_active, enemies_to_spawn, boss_wave = 0, True, 0, 0
-    game_state, mega_boss_killed, menu_open, menu_tab, shop_scroll, unit_scroll = 'playing', False, False, 0, 0, 0
+    game_state, mega_boss_killed, menu_open, menu_tab, shop_scroll, unit_scroll, upgrade_scroll = 'playing', False, False, 0, 0, 0, 0
+    
+    # Сброс прокачки энергии при рестарте
+    global_upgrades['energy_cap'] = 0 
+    
     start_wave()
 
 def start_wave():
@@ -85,7 +104,6 @@ while running:
             if ev.key == pygame.K_ESCAPE: menu_open = False
             if ev.key == pygame.K_r and game_state=='game_over': reset()
             
-            # Горячие клавиши 1-5 для ТЕКУЩЕЙ ВИДИМОЙ ПЯТЕРКИ
             if not menu_open:
                 all_keys_temp = ['soldier', 'flame', 'sniper', 'mine']
                 for k in SHOP_UNITS.keys():
@@ -104,12 +122,13 @@ while running:
         if ev.type == pygame.MOUSEBUTTONDOWN:
             mx, my = ev.pos
             
-            # --- ЛКМ (1) ---
             if ev.button == 1:
                 if menu_open:
                     menu_w_tmp, menu_h_tmp = 600, 450
                     menu_x_tmp = (W - menu_w_tmp) // 2
                     menu_y_tmp = (H - menu_h_tmp) // 2
+                    
+                    max_visible_menu = 5 
                     
                     tab_w = 130
                     tab_start_x_tmp = menu_x_tmp + (menu_w_tmp - 3 * tab_w - 2 * 10) // 2
@@ -133,41 +152,66 @@ while running:
                         content_y_tmp = menu_y_tmp + 70
                         item_w_tmp = menu_w_tmp - 60
                         item_h_tmp = 65
-
-                        if menu_tab == 0: # Upgrades
-                            upgrades = [('dmg', 160), ('rate', 230), ('income', 300), ('capacity', 370)]
-                            for key_idx, y_pos_offset in enumerate([0, 75, 150, 225]):
-                                 y_abs = content_y_tmp + y_pos_offset
-                                 key_name = ['dmg','rate','income','capacity'][key_idx]
-                                 lvl = global_upgrades[key_name]
-                                 rect_up = pygame.Rect(content_x_tmp, y_abs, item_w_tmp, item_h_tmp)
-                                 if rect_up.collidepoint(mx, my):
-                                     cost = UPGRADE_COSTS[key_name][lvl]
-                                     if lvl < 5 and money >= cost: 
-                                         money -= cost; global_upgrades[key_name] += 1
                         
-                        elif menu_tab == 1: # SHOP
-                            visible_keys = list(SHOP_UNITS.keys())[shop_scroll:shop_scroll+3]
-                            scroll_w = 50
-                            shop_item_h = 75
-                            start_y_shop = menu_y_tmp + 80 
-                            
-                            left_x = menu_x_tmp + 40
-                            right_x = menu_x_tmp + menu_w_tmp - 40 - scroll_w
-                            card_x_start = menu_x_tmp + 100 
-                            card_width = menu_w_tmp - 200   
+                        scroll_w = 50
+                        left_x = menu_x_tmp + 40
+                        right_x = menu_x_tmp + menu_w_tmp - 40 - scroll_w
+                        start_y_content = menu_y_tmp + 80 
 
-                            if pygame.Rect(left_x, start_y_shop, scroll_w, shop_item_h).collidepoint(mx, my):
-                                if shop_scroll > 0: shop_scroll -= 1
+                        if menu_tab == 0: # UPGRADES SCROLL
+                            all_upgrades = [
+                                ('Damage +15%', 'dmg', global_upgrades['dmg'], UPGRADE_COSTS['dmg'], Colors.RED),
+                                ('Fire Rate +10%', 'rate', global_upgrades['rate'], UPGRADE_COSTS['rate'], Colors.GOLD),
+                                ('Income +5%', 'income', global_upgrades['income'], UPGRADE_COSTS['income'], Colors.GREEN),
+                                ('Capacity +2', 'capacity', global_upgrades['capacity'], UPGRADE_COSTS['capacity'], Colors.CRYSTAL),
+                                ('Energy Cap +100', 'energy_cap', global_upgrades['energy_cap'], ENERGY_UPGRADE_COSTS, Colors.BLUE)
+                            ]
+                            
+                            if pygame.Rect(left_x, start_y_content, scroll_w, item_h_tmp).collidepoint(mx, my):
+                                if upgrade_scroll > 0: upgrade_scroll -= 1
                                 pygame.time.wait(150)
-                            elif pygame.Rect(right_x, start_y_shop, scroll_w, shop_item_h).collidepoint(mx, my):
-                                if shop_scroll < len(SHOP_UNITS) - 3: shop_scroll += 1
+                            elif pygame.Rect(right_x, start_y_content, scroll_w, item_h_tmp).collidepoint(mx, my):
+                                if upgrade_scroll < len(all_upgrades) - max_visible_menu: upgrade_scroll += 1
                                 pygame.time.wait(150)
                             else:
+                                visible_ups = all_upgrades[upgrade_scroll : upgrade_scroll + max_visible_menu]
+                                card_x_start = menu_x_tmp + 100
+                                card_width = menu_w_tmp - 200
+                                
+                                for i, (name, key, lvl, costs, col) in enumerate(visible_ups):
+                                    y_card = start_y_content + i * (item_h_tmp + 10)
+                                    rect_card = pygame.Rect(card_x_start, y_card, card_width, item_h_tmp)
+                                    
+                                    if rect_card.collidepoint(mx, my):
+                                        cost = costs[lvl] if lvl < len(costs) else 'MAX'
+                                        can_buy = money >= cost if isinstance(cost, int) else False
+                                        
+                                        if lvl < len(costs) and can_buy:
+                                            money -= cost
+                                            global_upgrades[key] += 1
+                                            
+                                            if key == 'energy_cap':
+                                                max_energy += ENERGY_UPGRADE_BONUS[lvl]
+                                                energy = min(energy + ENERGY_UPGRADE_BONUS[lvl], max_energy)
+
+                        elif menu_tab == 1: # SHOP SCROLL
+                            visible_keys = list(SHOP_UNITS.keys())[shop_scroll:shop_scroll+max_visible_menu]
+                            
+                            if pygame.Rect(left_x, start_y_content, scroll_w, item_h_tmp).collidepoint(mx, my):
+                                if shop_scroll > 0: shop_scroll -= 1
+                                pygame.time.wait(150)
+                            elif pygame.Rect(right_x, start_y_content, scroll_w, item_h_tmp).collidepoint(mx, my):
+                                if shop_scroll < len(SHOP_UNITS) - max_visible_menu: shop_scroll += 1
+                                pygame.time.wait(150)
+                            else:
+                                card_x_start = menu_x_tmp + 100
+                                card_width = menu_w_tmp - 200
+                                
                                 for i, k in enumerate(visible_keys):
                                     v = SHOP_UNITS[k]
-                                    y_card = start_y_shop + i * (shop_item_h + 10)
-                                    rect_card = pygame.Rect(card_x_start, y_card, card_width, shop_item_h)
+                                    y_card = start_y_content + i * (item_h_tmp + 10)
+                                    rect_card = pygame.Rect(card_x_start, y_card, card_width, item_h_tmp)
+                                    
                                     if rect_card.collidepoint(mx, my):
                                         if crystals >= v['cost_crystals'] and k not in UNITS:
                                             UNITS[k] = v
@@ -175,7 +219,7 @@ while running:
                                             save_game(crystals, list(UNITS.keys()))
                                             pygame.time.wait(200)
 
-                        elif menu_tab == 2: # Donate
+                        elif menu_tab == 2: # DONATE
                              donate_items = [("Watch Ad: +1 CR", Colors.GREEN), ("Buy 3 CR: 500$", Colors.GOLD), ("Monthly Pack: 10 CR", Colors.CRYSTAL)]
                              for i, (txt, col) in enumerate(donate_items):
                                  y_don = content_y_tmp + i * (item_h_tmp + 10)
@@ -187,9 +231,7 @@ while running:
                 
                 else: # Геймплей
                     ui_h = 100
-                    
-                    # --- ЛОГИКА НИЖНЕЙ ПАНЕЛИ (СДВИГ ВПРАВО НА 150PX) ---
-                    offset_right = 150 # Сдвиг всего блока вправо, чтобы не перекрывать HP
+                    offset_right = 150
                     
                     all_unit_keys = ['soldier', 'flame', 'sniper', 'mine']
                     for k in SHOP_UNITS.keys():
@@ -208,7 +250,6 @@ while running:
                     
                     if len(all_unit_keys) > max_visible:
                         total_block_width = arrow_w + gap + buttons_width + gap + arrow_w
-                        # Центрируем, но добавляем смещение вправо
                         start_x_total = ((W - total_block_width) // 2) + offset_right
                         
                         left_arrow_x = start_x_total
@@ -232,7 +273,6 @@ while running:
                                 if x < mx < x + btn_w and H-ui_h+10 < my < H-ui_h+65:
                                     selected_unit = k
                     else:
-                        # Если юнитов мало, тоже сдвигаем вправо
                         start_x_game = ((W - buttons_width) // 2) + offset_right
                         for i, k in enumerate(visible_keys_game):
                             x = start_x_game + i * (btn_w + gap)
@@ -250,7 +290,6 @@ while running:
                                      towers.append(Tower(c,r,selected_unit)); grid_map[r][c]=1; money-=cost
                          dragging = True; last_mouse = (mx, my)
 
-            # --- ПКМ (3) ПРОДАЖА ---
             elif ev.button == 3:
                 if not menu_open and my < H - 100:
                     c, r = from_iso(mx, my, cam_x, cam_y)
@@ -278,6 +317,16 @@ while running:
                     cam_x += dx; cam_y += dy; last_mouse = ev.pos
 
     # === LOGIC ===
+    # Регенерация энергии
+    if energy < max_energy:
+        energy += ENERGY_REGEN
+        if energy > max_energy: energy = max_energy
+
+    # Регенерация темной материи
+    if dark_matter < max_dark_matter:
+        dark_matter += DARK_MATTER_REGEN
+        if dark_matter > max_dark_matter: dark_matter = max_dark_matter
+
     mult = 1 + (wave * 0.18) + (global_upgrades['income'] * 0.05)
     if wave_active and enemies_to_spawn > 0:
         spawn_timer += 1
@@ -294,6 +343,10 @@ while running:
 
     for e in enemies[:]:
         if e.move(grid_map): lives-=1; enemies.remove(e)
+        
+        # Восстановление скорости врагов
+        e.update_speed_recovery()
+        
         res = e.update_pos(cam_x,cam_y)
         if res == 'spawn': enemies.append(Enemy(path, 'normal', mult, False, 0))
         if e.is_dead(): 
@@ -304,12 +357,28 @@ while running:
             enemies.remove(e)
         if lives<=0: game_state='game_over'
         
+    # Обновляем башни с передачей энергии и темной материи
     for t in towers:
-        t.update(enemies, projectiles, cam_x, cam_y, fx, screen)
-    
-    # Если это хилер и он только что выстрелил (cd почти полный), даем деньги
-        if t.data['type'] == 'heal' and t.cd == int(t.data['rate'] / t.rate_mult) - 1:
-            money += 5 
+        old_cd = t.cd
+        t.update(enemies, projectiles, cam_x, cam_y, fx, screen, energy, dark_matter) 
+        
+        # Логика списания ресурсов
+        if t.data['type'] == 'strike': # ORBITAL
+            if old_cd > 0 and t.cd == 0:
+                if energy >= 50: energy -= 50
+        
+        elif t.data['type'] == 'chain': # TESLA
+            if old_cd > 0 and t.cd == 0:
+                if energy >= 20: energy -= 20
+                
+        elif t.data['type'] == 'pull': # VOID
+            has_target = any(math.hypot(e.screen_x - t.screen_x, e.screen_y - t.screen_y) < t.data['range'] * TILE_W for e in enemies)
+            if has_target and dark_matter >= 0.5:
+                dark_matter -= 0.5
+        
+        # Отрисовка с передачей ресурсов
+        t.draw(screen, energy, dark_matter)
+        
     for p in projectiles[:]:
         p.update(enemies, fx); 
         if not p.active:
@@ -342,13 +411,21 @@ while running:
     for p in projectiles: p.draw(screen)
     fx.draw(screen)
 
-    # === UI НИЖНЯЯ ПАНЕЛЬ (СДВИГ ВПРАВО НА 150PX) ===
+    # === UI НИЖНЯЯ ПАНЕЛЬ ===
     ui_h = 100
     pygame.draw.rect(screen, Colors.UI_BG, (0, H-ui_h, W, ui_h))
     pygame.draw.line(screen, Colors.ACCENT, (0, H-ui_h), (W, H-ui_h), 2)
     
-    info = f"$ {money} | CR: {crystals} | W: {wave} | HP: {lives}"
+    info = f"$ {money} | ⚡ {int(energy)} | 🌑 {int(dark_matter)} | CR: {crystals} | W: {wave} | HP: {lives}"
     screen.blit(font.render(info, True, Colors.ACCENT), (20, H-75))
+    
+    # Полоска энергии
+    pygame.draw.rect(screen, (30, 30, 40), (20, H-55, 100, 10), border_radius=3)
+    pygame.draw.rect(screen, (0, 200, 255), (20, H-55, 100 * (energy / max_energy), 10), border_radius=3)
+    
+    # Полоска темной материи
+    pygame.draw.rect(screen, (30, 30, 40), (130, H-55, 100, 10), border_radius=3)
+    pygame.draw.rect(screen, Colors.VOID_PURPLE, (130, H-55, 100 * (dark_matter / max_dark_matter), 10), border_radius=3)
 
     all_unit_keys = ['soldier', 'flame', 'sniper', 'mine']
     for k in SHOP_UNITS.keys():
@@ -357,7 +434,7 @@ while running:
     max_visible = 5
     btn_w, gap = 110, 10
     arrow_w = 40
-    offset_right = 150 # Тот же сдвиг
+    offset_right = 150
     
     start_idx = unit_scroll
     end_idx = min(start_idx + max_visible, len(all_unit_keys))
@@ -401,7 +478,7 @@ while running:
     pygame.draw.rect(screen, Colors.CRYSTAL, (20, 20, 90, 40), 2)
     screen.blit(font.render("[P] MENU", True, Colors.WHITE), (30, 30))
 
-    # === ОКНО МЕНЮ (ОТРИСОВКА) ===
+    # === ОКНО МЕНЮ (ОТРИСОВКА С ПРОКРУТКОЙ) ===
     if menu_open:
         menu_w, menu_h = 600, 450
         menu_x = (W - menu_w) // 2
@@ -427,54 +504,66 @@ while running:
         content_y = menu_y + 70
         item_w = menu_w - 60
         item_h = 65
+        max_visible = 5
         
-        if menu_tab == 0:
-            upgrades = [('Damage +15%', 'dmg', global_upgrades['dmg'], UPGRADE_COSTS['dmg'], Colors.RED),
-                        ('Fire Rate +10%', 'rate', global_upgrades['rate'], UPGRADE_COSTS['rate'], Colors.GOLD),
-                        ('Income +5%', 'income', global_upgrades['income'], UPGRADE_COSTS['income'], Colors.GREEN),
-                        ('Capacity +2', 'capacity', global_upgrades['capacity'], UPGRADE_COSTS['capacity'], Colors.CRYSTAL)]
-            for i, (name, key, lvl, costs, col) in enumerate(upgrades):
-                y = content_y + i * (item_h + 10)
+        scroll_w = 50
+        left_x = menu_x + 40
+        right_x = menu_x + menu_w - 40 - scroll_w
+        start_y_content = menu_y + 80
+        card_x_start = menu_x + 100
+        card_width = menu_w - 200
+
+        if menu_tab == 0: # UPGRADES VISUAL
+            all_upgrades = [
+                ('Damage +15%', 'dmg', global_upgrades['dmg'], UPGRADE_COSTS['dmg'], Colors.RED),
+                ('Fire Rate +10%', 'rate', global_upgrades['rate'], UPGRADE_COSTS['rate'], Colors.GOLD),
+                ('Income +5%', 'income', global_upgrades['income'], UPGRADE_COSTS['income'], Colors.GREEN),
+                ('Capacity +2', 'capacity', global_upgrades['capacity'], UPGRADE_COSTS['capacity'], Colors.CRYSTAL),
+                ('Energy Cap +100', 'energy_cap', global_upgrades['energy_cap'], ENERGY_UPGRADE_COSTS, Colors.BLUE)
+            ]
+            
+            visible_ups = all_upgrades[upgrade_scroll : upgrade_scroll + max_visible]
+            
+            pygame.draw.rect(screen, (60,60,80), (left_x, start_y_content, scroll_w, item_h), border_radius=5)
+            pygame.draw.rect(screen, (60,60,80), (right_x, start_y_content, scroll_w, item_h), border_radius=5)
+            font_arrow = pygame.font.SysFont('consolas', 30, bold=True)
+            screen.blit(font_arrow.render("<", True, Colors.WHITE), (left_x + 15, start_y_content + 15))
+            screen.blit(font_arrow.render(">", True, Colors.WHITE), (right_x + 15, start_y_content + 15))
+
+            for i, (name, key, lvl, costs, col) in enumerate(visible_ups):
+                y_card = start_y_content + i * (item_h + 10)
                 cost = costs[lvl] if lvl < len(costs) else 'MAX'
                 can_buy = money >= cost if isinstance(cost, int) else False
-                c = Colors.WHITE if lvl>=5 else (col if can_buy else (100,100,100))
-                rect = pygame.Rect(content_x, y, item_w, item_h)
+                c_text = Colors.WHITE if lvl >= len(costs) else (col if can_buy else (100,100,100))
+                
+                rect = pygame.Rect(card_x_start, y_card, card_width, item_h)
                 pygame.draw.rect(screen, (50,50,70), rect, border_radius=8)
-                screen.blit(font.render(f"{name} [Lvl {lvl}/5]", True, Colors.WHITE), (content_x + 10, y + 10))
-                screen.blit(font.render(f"Cost: {cost}$", True, c), (content_x + 10, y + 38))
+                screen.blit(font.render(f"{name} [Lvl {lvl}/{len(costs)}]", True, Colors.WHITE), (card_x_start + 10, y_card + 10))
+                screen.blit(font.render(f"Cost: {cost}$", True, c_text), (card_x_start + 10, y_card + 38))
 
         elif menu_tab == 1: # SHOP VISUAL
-            visible_keys_shop = list(SHOP_UNITS.keys())[shop_scroll:shop_scroll+3]
-            scroll_w = 50
-            shop_item_h = 75
-            start_y_shop = menu_y + 80 
+            visible_keys_shop = list(SHOP_UNITS.keys())[shop_scroll:shop_scroll+max_visible]
             
-            left_x = menu_x + 40
-            right_x = menu_x + menu_w - 40 - scroll_w
-            card_x_start = menu_x + 100 
-            card_width = menu_w - 200   
-
-            pygame.draw.rect(screen, (60,60,80), (left_x, start_y_shop, scroll_w, shop_item_h), border_radius=5)
-            pygame.draw.rect(screen, (60,60,80), (right_x, start_y_shop, scroll_w, shop_item_h), border_radius=5)
-            
+            pygame.draw.rect(screen, (60,60,80), (left_x, start_y_content, scroll_w, item_h), border_radius=5)
+            pygame.draw.rect(screen, (60,60,80), (right_x, start_y_content, scroll_w, item_h), border_radius=5)
             font_arrow = pygame.font.SysFont('consolas', 30, bold=True)
-            screen.blit(font_arrow.render("<", True, Colors.WHITE), (left_x + 15, start_y_shop + 15))
-            screen.blit(font_arrow.render(">", True, Colors.WHITE), (right_x + 15, start_y_shop + 15))
+            screen.blit(font_arrow.render("<", True, Colors.WHITE), (left_x + 15, start_y_content + 15))
+            screen.blit(font_arrow.render(">", True, Colors.WHITE), (right_x + 15, start_y_content + 15))
 
             for i, k in enumerate(visible_keys_shop):
                 v = SHOP_UNITS[k]
-                y_card = start_y_shop + i * (shop_item_h + 10)
+                y_card = start_y_content + i * (item_h + 10)
                 
                 owned = k in UNITS
                 status = "OWNED" if owned else f"{v['cost_crystals']} CR"
                 col = Colors.GREEN if owned else Colors.CRYSTAL
                 
-                rect = pygame.Rect(card_x_start, y_card, card_width, shop_item_h)
+                rect = pygame.Rect(card_x_start, y_card, card_width, item_h)
                 pygame.draw.rect(screen, (50,50,70), rect, border_radius=8)
                 
                 screen.blit(font.render(f"{v['name']} - {status}", True, col), (card_x_start + 10, y_card + 15))
                 if not owned: 
-                    screen.blit(font.render(f"Price: ${v['cost']}", True, Colors.GOLD), (card_x_start + 10, y_card + 40))
+                    screen.blit(font.render(f"Price: ${v['cost']}", True, Colors.GOLD), (card_x_start + 10, y_card + 38))
 
         elif menu_tab == 2: # DONATE VISUAL
             donate_items = [("Watch Ad: +1 CR", Colors.GREEN), ("Buy 3 CR: 500$", Colors.GOLD), ("Monthly Pack: 10 CR", Colors.CRYSTAL)]
@@ -491,5 +580,3 @@ while running:
     pygame.display.flip()
 
 pygame.quit(); sys.exit()
-
-
