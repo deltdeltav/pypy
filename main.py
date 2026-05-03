@@ -305,7 +305,11 @@ while running:
         if lives<=0: game_state='game_over'
         
     for t in towers:
-        t.update(enemies,projectiles,cam_x,cam_y, fx, screen)
+        t.update(enemies, projectiles, cam_x, cam_y, fx, screen)
+    
+    # Если это хилер и он только что выстрелил (cd почти полный), даем деньги
+        if t.data['type'] == 'heal' and t.cd == int(t.data['rate'] / t.rate_mult) - 1:
+            money += 5 
     for p in projectiles[:]:
         p.update(enemies, fx); 
         if not p.active:
@@ -487,3 +491,5 @@ while running:
     pygame.display.flip()
 
 pygame.quit(); sys.exit()
+
+
