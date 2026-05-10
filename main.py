@@ -13,7 +13,24 @@ clock = pygame.time.Clock()
 font = pygame.font.SysFont('consolas', 18, bold=True)
 font_big = pygame.font.SysFont('consolas', 40, bold=True)
 
-# --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ---
+# --- НАСТРОЙКИ UI И ЛИМИТОВ ---
+BASE_TOWER_LIMIT = 6
+
+# Вертикальное меню юнитов (Слева, сдвинуто вниз)
+V_MENU_X = 10
+V_MENU_Y_START = 110 # Сдвинули ниже, чтобы не лезть на полоски
+V_BTN_W = 140
+V_BTN_H = 45
+V_GAP = 5
+V_MAX_VISIBLE = 5    # Сколько кнопок видно за раз
+
+# Кнопка Меню (Правый верхний угол)
+MENU_BTN_W = 90
+MENU_BTN_H = 40
+MENU_BTN_X = W - MENU_BTN_W - 10
+MENU_BTN_Y = 10
+
+# Глобальные переменные
 money, crystals = START_MONEY, START_CRYSTALS
 energy = START_ENERGY
 max_energy = MAX_ENERGY
@@ -32,7 +49,6 @@ shop_scroll = 0
 unit_scroll = 0
 upgrade_scroll = 0
 
-# Словарь прокачки (добавлен energy_cap)
 global_upgrades = {'dmg': 0, 'rate': 0, 'hp': 0, 'income': 0, 'capacity': 0, 'energy_cap': 0}
 
 fx = EffectsManager()
@@ -60,10 +76,7 @@ def reset():
     towers, enemies, projectiles = [], [], []
     spawn_timer, wave_active, enemies_to_spawn, boss_wave = 0, True, 0, 0
     game_state, mega_boss_killed, menu_open, menu_tab, shop_scroll, unit_scroll, upgrade_scroll = 'playing', False, False, 0, 0, 0, 0
-    
-    # Сброс прокачки энергии при рестарте
     global_upgrades['energy_cap'] = 0 
-    
     start_wave()
 
 def start_wave():
@@ -104,15 +117,27 @@ while running:
             if ev.key == pygame.K_ESCAPE: menu_open = False
             if ev.key == pygame.K_r and game_state=='game_over': reset()
             
+            # --- ПРОКРУТКА СПИСКА ЮНИТОВ СТРЕЛКАМИ ---
             if not menu_open:
                 all_keys_temp = ['soldier', 'flame', 'sniper', 'mine']
                 for k in SHOP_UNITS.keys():
                     if k in UNITS: all_keys_temp.append(k)
                 
-                start_idx = unit_scroll
-                end_idx = min(start_idx + 5, len(all_keys_temp))
-                visible_temp = all_keys_temp[start_idx:end_idx]
+                if ev.key == pygame.K_LEFT: # Стрелка ВЛЕВО
+                    if unit_scroll > 0:
+                        unit_scroll -= 1
+                        pygame.time.wait(100)
                 
+                if ev.key == pygame.K_RIGHT: # Стрелка ВПРАВО
+                    if unit_scroll + V_MAX_VISIBLE < len(all_keys_temp):
+                        unit_scroll += 1
+                        pygame.time.wait(100)
+
+                # Клавиши 1-5 выбирают юнита из ВИДИМОГО списка
+                start_idx = unit_scroll
+                end_idx = min(start_idx + V_MAX_VISIBLE, len(all_keys_temp))
+                visible_temp = all_keys_temp[start_idx:end_idx]
+
                 if ev.key == pygame.K_1 and len(visible_temp) > 0: selected_unit = visible_temp[0]
                 if ev.key == pygame.K_2 and len(visible_temp) > 1: selected_unit = visible_temp[1]
                 if ev.key == pygame.K_3 and len(visible_temp) > 2: selected_unit = visible_temp[2]
@@ -123,31 +148,36 @@ while running:
             mx, my = ev.pos
             
             if ev.button == 1:
+                # 1. Кнопка Меню (Правый верхний угол)
+                menu_rect = pygame.Rect(MENU_BTN_X, MENU_BTN_Y, MENU_BTN_W, MENU_BTN_H)
+                if menu_rect.collidepoint(mx, my):
+                    menu_open = not menu_open
+                    continue
+
                 if menu_open:
+                    # --- ЛОГИКА ВНУТРЕННЕГО МЕНЮ ---
                     menu_w_tmp, menu_h_tmp = 600, 450
                     menu_x_tmp = (W - menu_w_tmp) // 2
                     menu_y_tmp = (H - menu_h_tmp) // 2
-                    
-                    max_visible_menu = 5 
                     
                     tab_w = 130
                     tab_start_x_tmp = menu_x_tmp + (menu_w_tmp - 3 * tab_w - 2 * 10) // 2
                     tab_y_tmp = menu_y_tmp + 10
                     
-                    clicked = False
+                    clicked_menu = False
                     for t in range(3):
                         tx = tab_start_x_tmp + t * (tab_w + 10)
                         rect = pygame.Rect(tx, tab_y_tmp, tab_w, 40)
                         if rect.collidepoint(mx, my):
                             menu_tab = t
-                            clicked = True
+                            clicked_menu = True
                     
                     close_rect_tmp = pygame.Rect(menu_x_tmp + 20, menu_y_tmp + menu_h_tmp - 80, 90, 60)
                     if close_rect_tmp.collidepoint(mx, my): 
                         menu_open = False
-                        clicked = True
+                        clicked_menu = True
                     
-                    if not clicked:
+                    if not clicked_menu:
                         content_x_tmp = menu_x_tmp + 30
                         content_y_tmp = menu_y_tmp + 70
                         item_w_tmp = menu_w_tmp - 60
@@ -158,7 +188,7 @@ while running:
                         right_x = menu_x_tmp + menu_w_tmp - 40 - scroll_w
                         start_y_content = menu_y_tmp + 80 
 
-                        if menu_tab == 0: # UPGRADES SCROLL
+                        if menu_tab == 0: # UPGRADES
                             all_upgrades = [
                                 ('Damage +15%', 'dmg', global_upgrades['dmg'], UPGRADE_COSTS['dmg'], Colors.RED),
                                 ('Fire Rate +10%', 'rate', global_upgrades['rate'], UPGRADE_COSTS['rate'], Colors.GOLD),
@@ -171,10 +201,10 @@ while running:
                                 if upgrade_scroll > 0: upgrade_scroll -= 1
                                 pygame.time.wait(150)
                             elif pygame.Rect(right_x, start_y_content, scroll_w, item_h_tmp).collidepoint(mx, my):
-                                if upgrade_scroll < len(all_upgrades) - max_visible_menu: upgrade_scroll += 1
+                                if upgrade_scroll < len(all_upgrades) - 5: upgrade_scroll += 1
                                 pygame.time.wait(150)
                             else:
-                                visible_ups = all_upgrades[upgrade_scroll : upgrade_scroll + max_visible_menu]
+                                visible_ups = all_upgrades[upgrade_scroll : upgrade_scroll + 5]
                                 card_x_start = menu_x_tmp + 100
                                 card_width = menu_w_tmp - 200
                                 
@@ -189,19 +219,18 @@ while running:
                                         if lvl < len(costs) and can_buy:
                                             money -= cost
                                             global_upgrades[key] += 1
-                                            
                                             if key == 'energy_cap':
                                                 max_energy += ENERGY_UPGRADE_BONUS[lvl]
                                                 energy = min(energy + ENERGY_UPGRADE_BONUS[lvl], max_energy)
 
-                        elif menu_tab == 1: # SHOP SCROLL
-                            visible_keys = list(SHOP_UNITS.keys())[shop_scroll:shop_scroll+max_visible_menu]
+                        elif menu_tab == 1: # SHOP
+                            visible_keys = list(SHOP_UNITS.keys())[shop_scroll:shop_scroll+5]
                             
                             if pygame.Rect(left_x, start_y_content, scroll_w, item_h_tmp).collidepoint(mx, my):
                                 if shop_scroll > 0: shop_scroll -= 1
                                 pygame.time.wait(150)
                             elif pygame.Rect(right_x, start_y_content, scroll_w, item_h_tmp).collidepoint(mx, my):
-                                if shop_scroll < len(SHOP_UNITS) - max_visible_menu: shop_scroll += 1
+                                if shop_scroll < len(SHOP_UNITS) - 5: shop_scroll += 1
                                 pygame.time.wait(150)
                             else:
                                 card_x_start = menu_x_tmp + 100
@@ -229,69 +258,58 @@ while running:
                                      if "Buy" in txt and money >= 500: money -= 500; crystals += 3
                                      if "Pack" in txt and crystals >= 10: crystals -= 10
                 
-                else: # Геймплей
-                    ui_h = 100
-                    offset_right = 150
-                    
+                else: # ГЕЙМПЛЕЙ
+                    # 2. Проверка клика по вертикальному меню юнитов (Слева)
                     all_unit_keys = ['soldier', 'flame', 'sniper', 'mine']
                     for k in SHOP_UNITS.keys():
                         if k in UNITS: all_unit_keys.append(k)
                     
-                    max_visible = 5
-                    btn_w, gap = 110, 10
-                    arrow_w = 40
-                    
                     start_idx = unit_scroll
-                    end_idx = min(start_idx + max_visible, len(all_unit_keys))
+                    end_idx = min(start_idx + V_MAX_VISIBLE, len(all_unit_keys))
                     visible_keys_game = all_unit_keys[start_idx : end_idx]
                     
                     current_count = len(visible_keys_game)
-                    buttons_width = current_count * btn_w + (current_count - 1) * gap
+                    buttons_block_height = current_count * V_BTN_H + (current_count - 1) * V_GAP
                     
-                    if len(all_unit_keys) > max_visible:
-                        total_block_width = arrow_w + gap + buttons_width + gap + arrow_w
-                        start_x_total = ((W - total_block_width) // 2) + offset_right
-                        
-                        left_arrow_x = start_x_total
-                        buttons_start_x = start_x_total + arrow_w + gap
-                        right_arrow_x = start_x_total + arrow_w + gap + buttons_width + gap
-                        
-                        left_arrow_rect = pygame.Rect(left_arrow_x, H-ui_h+10, arrow_w, 55)
-                        right_arrow_rect = pygame.Rect(right_arrow_x, H-ui_h+10, arrow_w, 55)
-                        
-                        if left_arrow_rect.collidepoint(mx, my):
-                            if unit_scroll >= max_visible: unit_scroll -= max_visible
-                            else: unit_scroll = 0
-                            pygame.time.wait(200)
-                        elif right_arrow_rect.collidepoint(mx, my):
-                            if unit_scroll + max_visible < len(all_unit_keys): unit_scroll += max_visible
-                            else: unit_scroll = 0
-                            pygame.time.wait(200)
-                        else:
-                            for i, k in enumerate(visible_keys_game):
-                                x = buttons_start_x + i * (btn_w + gap)
-                                if x < mx < x + btn_w and H-ui_h+10 < my < H-ui_h+65:
-                                    selected_unit = k
+                    arrow_y_pos = V_MENU_Y_START + buttons_block_height + 10
+                    arrow_h = 30
+                    arrow_w = 70
+                    
+                    left_arrow_rect = pygame.Rect(V_MENU_X, arrow_y_pos, arrow_w, arrow_h)
+                    right_arrow_rect = pygame.Rect(V_MENU_X + arrow_w + 10, arrow_y_pos, arrow_w, arrow_h)
+
+                    clicked_ui = False
+                    
+                    # Клик по стрелке ВЛЕВО
+                    if len(all_unit_keys) > V_MAX_VISIBLE and left_arrow_rect.collidepoint(mx, my):
+                        if unit_scroll > 0: unit_scroll -= 1
+                        clicked_ui = True
+                        pygame.time.wait(100)
+                    
+                    # Клик по стрелке ВПРАВО
+                    elif len(all_unit_keys) > V_MAX_VISIBLE and right_arrow_rect.collidepoint(mx, my):
+                        if unit_scroll + V_MAX_VISIBLE < len(all_unit_keys): unit_scroll += 1
+                        clicked_ui = True
+                        pygame.time.wait(100)
+                    
+                    # Клик по кнопкам юнитов
                     else:
-                        start_x_game = ((W - buttons_width) // 2) + offset_right
                         for i, k in enumerate(visible_keys_game):
-                            x = start_x_game + i * (btn_w + gap)
-                            if x < mx < x + btn_w and H-ui_h+10 < my < H-ui_h+65:
+                            x = V_MENU_X
+                            y = V_MENU_Y_START + i * (V_BTN_H + V_GAP)
+                            rect = pygame.Rect(x, y, V_BTN_W, V_BTN_H)
+                            if rect.collidepoint(mx, my):
                                 selected_unit = k
+                                clicked_ui = True
+                                break
+                    
+                    # Если не кликнули по UI -> Драг карты
+                    if not clicked_ui:
+                        dragging = True
+                        last_mouse = (mx, my)
 
-                    if my < H-ui_h:
-                         c,r = from_iso(mx,my,cam_x,cam_y)
-                         if 0<=c<COLS and 0<=r<ROWS:
-                             cost = UNITS[selected_unit].get('cost', 9999)
-                             if money >= cost:
-                                 if selected_unit=='mine' and grid_map[r][c]==1:
-                                     grid_map[r][c]=2; money-=cost
-                                 elif selected_unit!='mine' and grid_map[r][c]==0 and len(towers) < 10 + global_upgrades['capacity']*2:
-                                     towers.append(Tower(c,r,selected_unit)); grid_map[r][c]=1; money-=cost
-                         dragging = True; last_mouse = (mx, my)
-
-            elif ev.button == 3:
-                if not menu_open and my < H - 100:
+            elif ev.button == 3: # Продажа
+                if not menu_open:
                     c, r = from_iso(mx, my, cam_x, cam_y)
                     if 0 <= c < COLS and 0 <= r < ROWS:
                         tower_to_sell = None
@@ -299,7 +317,6 @@ while running:
                             if t.c == c and t.r == r:
                                 tower_to_sell = t
                                 break
-                        
                         if tower_to_sell:
                             refund = int(tower_to_sell.data['cost'] * 0.2)
                             money += refund
@@ -309,7 +326,28 @@ while running:
             
         if ev.type == pygame.MOUSEBUTTONUP and ev.button==1: 
             dragging = False
-            
+            # Строительство при отпускании
+            if not menu_open:
+                 mx, my = pygame.mouse.get_pos()
+                 c, r = from_iso(mx, my, cam_x, cam_y)
+                 
+                 if 0 <= c < COLS and 0 <= r < ROWS:
+                     current_limit = BASE_TOWER_LIMIT + (global_upgrades['capacity'] * 2)
+                     cost = UNITS[selected_unit].get('cost', 9999)
+                     
+                     if grid_map[r][c] == 0 and money >= cost:
+                         if len(towers) < current_limit:
+                             towers.append(Tower(c, r, selected_unit))
+                             grid_map[r][c] = 1
+                             money -= cost
+                         else:
+                             fx.spawn_damage(mx, my, "FULL!")
+                     elif grid_map[r][c] == 1 and selected_unit == 'mine' and money >= cost:
+                         grid_map[r][c] = 2
+                         money -= cost
+                     elif money < cost:
+                         fx.spawn_damage(mx, my, "NO $")
+
         if ev.type == pygame.MOUSEMOTION:
             if dragging:
                 dx = ev.pos[0]-last_mouse[0]; dy = ev.pos[1]-last_mouse[1]
@@ -317,12 +355,10 @@ while running:
                     cam_x += dx; cam_y += dy; last_mouse = ev.pos
 
     # === LOGIC ===
-    # Регенерация энергии
     if energy < max_energy:
         energy += ENERGY_REGEN
         if energy > max_energy: energy = max_energy
 
-    # Регенерация темной материи
     if dark_matter < max_dark_matter:
         dark_matter += DARK_MATTER_REGEN
         if dark_matter > max_dark_matter: dark_matter = max_dark_matter
@@ -343,10 +379,7 @@ while running:
 
     for e in enemies[:]:
         if e.move(grid_map): lives-=1; enemies.remove(e)
-        
-        # Восстановление скорости врагов
         e.update_speed_recovery()
-        
         res = e.update_pos(cam_x,cam_y)
         if res == 'spawn': enemies.append(Enemy(path, 'normal', mult, False, 0))
         if e.is_dead(): 
@@ -357,26 +390,21 @@ while running:
             enemies.remove(e)
         if lives<=0: game_state='game_over'
         
-    # Обновляем башни с передачей энергии и темной материи
     for t in towers:
         old_cd = t.cd
         t.update(enemies, projectiles, cam_x, cam_y, fx, screen, energy, dark_matter) 
         
-        # Логика списания ресурсов
-        if t.data['type'] == 'strike': # ORBITAL
+        if t.data['type'] == 'strike':
             if old_cd > 0 and t.cd == 0:
                 if energy >= 50: energy -= 50
-        
-        elif t.data['type'] == 'chain': # TESLA
+        elif t.data['type'] == 'chain':
             if old_cd > 0 and t.cd == 0:
                 if energy >= 20: energy -= 20
-                
-        elif t.data['type'] == 'pull': # VOID
+        elif t.data['type'] == 'pull':
             has_target = any(math.hypot(e.screen_x - t.screen_x, e.screen_y - t.screen_y) < t.data['range'] * TILE_W for e in enemies)
             if has_target and dark_matter >= 0.5:
                 dark_matter -= 0.5
         
-        # Отрисовка с передачей ресурсов
         t.draw(screen, energy, dark_matter)
         
     for p in projectiles[:]:
@@ -404,81 +432,93 @@ while running:
             else: draw_tile_3d(screen,c,r,'grass',r_cam_x,r_cam_y)
             
     for obj in enemies + towers: 
-        if hasattr(obj, 'update_pos'): obj.update_pos(r_cam_x, r_cam_y)
-        
+        if hasattr(obj, 'update_pos'): 
+            obj.update_pos(r_cam_x, r_cam_y)
+
     all_drawable = sorted(enemies + towers, key=lambda o:o.screen_y if hasattr(o,'screen_y') else 0)
-    for obj in all_drawable: obj.draw(screen)
+    for obj in all_drawable: 
+        obj.draw(screen)
     for p in projectiles: p.draw(screen)
     fx.draw(screen)
 
-    # === UI НИЖНЯЯ ПАНЕЛЬ ===
-    ui_h = 100
-    pygame.draw.rect(screen, Colors.UI_BG, (0, H-ui_h, W, ui_h))
-    pygame.draw.line(screen, Colors.ACCENT, (0, H-ui_h), (W, H-ui_h), 2)
+    # === UI ===
     
-    info = f"$ {money} | ⚡ {int(energy)} | 🌑 {int(dark_matter)} | CR: {crystals} | W: {wave} | HP: {lives}"
-    screen.blit(font.render(info, True, Colors.ACCENT), (20, H-75))
+    # 1. Статистика и Полоски Ресурсов
+    current_limit = BASE_TOWER_LIMIT + (global_upgrades['capacity'] * 2)
     
-    # Полоска энергии
-    pygame.draw.rect(screen, (30, 30, 40), (20, H-55, 100, 10), border_radius=3)
-    pygame.draw.rect(screen, (0, 200, 255), (20, H-55, 100 * (energy / max_energy), 10), border_radius=3)
+    # Текст статистики
+    info = f"$ {money}  | CR: {crystals} | T: {len(towers)}/{current_limit} | ⚡ {int(energy)} | 🌑 {int(dark_matter)} | HP: {lives}"
+    screen.blit(font.render(info, True, Colors.ACCENT), (10, 10))
     
-    # Полоска темной материи
-    pygame.draw.rect(screen, (30, 30, 40), (130, H-55, 100, 10), border_radius=3)
-    pygame.draw.rect(screen, Colors.VOID_PURPLE, (130, H-55, 100 * (dark_matter / max_dark_matter), 10), border_radius=3)
+    # --- ПОЛОСКИ РЕСУРСОВ ---
+    
+    # 1. Энергия (Синяя)
+    pygame.draw.rect(screen, (30, 30, 40), (10, 40, 100, 8), border_radius=2)
+    pygame.draw.rect(screen, (0, 200, 255), (10, 40, 100 * (energy / max_energy), 8), border_radius=2)
+    
+    # 2. Темная Материя (Фиолетовая)
+    pygame.draw.rect(screen, (30, 30, 40), (10, 55, 100, 8), border_radius=2)
+    pygame.draw.rect(screen, Colors.VOID_PURPLE, (10, 55, 100 * (dark_matter / max_dark_matter), 8), border_radius=2)
 
+    # 3. Жизни / HP (Красная)
+    max_lives_display = 20 
+    hp_percent = lives / max_lives_display if max_lives_display > 0 else 0
+    pygame.draw.rect(screen, (30, 30, 40), (10, 70, 100, 8), border_radius=2)
+    pygame.draw.rect(screen, (255, 50, 50), (10, 70, 100 * hp_percent, 8), border_radius=2)
+
+    # 2. Кнопка Меню (ПРАВЫЙ ВЕРХНИЙ УГОЛ)
+    menu_rect = pygame.Rect(MENU_BTN_X, MENU_BTN_Y, MENU_BTN_W, MENU_BTN_H)
+    col_menu = Colors.ACCENT if menu_open else (60,60,80)
+    pygame.draw.rect(screen, col_menu, menu_rect, border_radius=8)
+    pygame.draw.rect(screen, Colors.WHITE, menu_rect, 2, border_radius=8)
+    screen.blit(font.render("MENU", True, Colors.WHITE), (MENU_BTN_X + 15, MENU_BTN_Y + 10))
+
+    # 3. Вертикальное меню юнитов (Слева столбиком)
     all_unit_keys = ['soldier', 'flame', 'sniper', 'mine']
     for k in SHOP_UNITS.keys():
         if k in UNITS: all_unit_keys.append(k)
 
-    max_visible = 5
-    btn_w, gap = 110, 10
-    arrow_w = 40
-    offset_right = 150
-    
     start_idx = unit_scroll
-    end_idx = min(start_idx + max_visible, len(all_unit_keys))
+    end_idx = min(start_idx + V_MAX_VISIBLE, len(all_unit_keys))
     visible_keys_render = all_unit_keys[start_idx : end_idx]
     
     current_count = len(visible_keys_render)
-    buttons_width = current_count * btn_w + (current_count - 1) * gap
+    buttons_block_height = current_count * V_BTN_H + (current_count - 1) * V_GAP
     
-    if len(all_unit_keys) > max_visible:
-        total_block_width = arrow_w + gap + buttons_width + gap + arrow_w
-        start_x_total = ((W - total_block_width) // 2) + offset_right
-        
-        left_arrow_x = start_x_total
-        buttons_start_x = start_x_total + arrow_w + gap
-        right_arrow_x = start_x_total + arrow_w + gap + buttons_width + gap
-        
-        pygame.draw.rect(screen, (60,60,80), (left_arrow_x, H-ui_h+10, arrow_w, 55), border_radius=6)
-        pygame.draw.rect(screen, (60,60,80), (right_arrow_x, H-ui_h+10, arrow_w, 55), border_radius=6)
-        
-        font_arrow = pygame.font.SysFont('consolas', 24, bold=True)
-        screen.blit(font_arrow.render("<", True, Colors.WHITE), (left_arrow_x + 12, H-ui_h+25))
-        screen.blit(font_arrow.render(">", True, Colors.WHITE), (right_arrow_x + 12, H-ui_h+25))
-        
-    else:
-        buttons_start_x = ((W - buttons_width) // 2) + offset_right
+    arrow_y_pos = V_MENU_Y_START + buttons_block_height + 10
+    arrow_h = 30
+    arrow_w = 70
+    
+    left_arrow_rect = pygame.Rect(V_MENU_X, arrow_y_pos, arrow_w, arrow_h)
+    right_arrow_rect = pygame.Rect(V_MENU_X + arrow_w + 10, arrow_y_pos, arrow_w, arrow_h)
 
+    # Рисуем кнопки юнитов
     for i, k in enumerate(visible_keys_render):
-        x = buttons_start_x + i * (btn_w + gap)
-        y = H - ui_h + 10
+        x = V_MENU_X
+        y = V_MENU_Y_START + i * (V_BTN_H + V_GAP)
         
-        rect = pygame.Rect(x, y, btn_w, 55)
-        
+        rect = pygame.Rect(x, y, V_BTN_W, V_BTN_H)
         bg_col = Colors.ACCENT if selected_unit == k else (60,60,70)
+        
         pygame.draw.rect(screen, bg_col, rect, border_radius=6)
         pygame.draw.rect(screen, (20,20,30), rect, 2, border_radius=6)
         
-        screen.blit(font.render(f"[{i+1}]", True, (100,100,100)), (x+6, y+4))
-        screen.blit(font.render(UNITS[k]['name'], True, Colors.WHITE), (x+20, y+10))
-        screen.blit(font.render(f"${UNITS[k].get('cost',0)}", True, Colors.GOLD), (x+20, y+32))
+        screen.blit(font.render(f"[{start_idx + i + 1}]", True, (150,150,150)), (x+5, y+5))
+        screen.blit(font.render(UNITS[k]['name'], True, Colors.WHITE), (x+30, y+5))
+        screen.blit(font.render(f"${UNITS[k].get('cost',0)}", True, Colors.GOLD), (x+30, y+25))
 
-    pygame.draw.rect(screen, Colors.CRYSTAL, (20, 20, 90, 40), 2)
-    screen.blit(font.render("[P] MENU", True, Colors.WHITE), (30, 30))
+    # Рисуем стрелки ПРОКРУТКИ ПОД кнопками
+    if len(all_unit_keys) > V_MAX_VISIBLE:
+        # Стрелка ВЛЕВО (<)
+        pygame.draw.rect(screen, (60,60,80), left_arrow_rect, border_radius=4)
+        font_arrow = pygame.font.SysFont('consolas', 24, bold=True)
+        screen.blit(font_arrow.render("< PREV", True, Colors.WHITE), (V_MENU_X + 5, arrow_y_pos + 5))
+        
+        # Стрелка ВПРАВО (>)
+        pygame.draw.rect(screen, (60,60,80), right_arrow_rect, border_radius=4)
+        screen.blit(font_arrow.render("NEXT >", True, Colors.WHITE), (V_MENU_X + arrow_w + 15, arrow_y_pos + 5))
 
-    # === ОКНО МЕНЮ (ОТРИСОВКА С ПРОКРУТКОЙ) ===
+    # === ОКНО МЕНЮ (Отрисовка) ===
     if menu_open:
         menu_w, menu_h = 600, 450
         menu_x = (W - menu_w) // 2
