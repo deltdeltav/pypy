@@ -98,6 +98,12 @@ class Tower:
         self.dmg_mult = 1.0 + (global_upgrades['dmg'] * 0.15)
         self.rate_mult = 1.0 + (global_upgrades['rate'] * 0.1)
 
+    def update_pos(self, cam_x, cam_y):
+        """Обновляет экранные координаты башни"""
+        self.screen_x, self.screen_y = to_iso(self.c, self.r, cam_x, cam_y)
+        self.screen_y -= 5
+        return None
+
     def update(self, enemies, projectiles, cam_x, cam_y, fx, screen, energy, dark_matter):
         self.screen_x, self.screen_y = to_iso(self.c, self.r, cam_x, cam_y)
         self.screen_y -= 5
@@ -174,7 +180,7 @@ class Tower:
                     fx.spawn_explosion(self.screen_x, self.screen_y, (80, 0, 150), count=3)
                 else: fx.spawn_explosion(self.screen_x, self.screen_y, (50, 50, 50), count=1)
 
-            elif u_type == 'aoe' and self.data['name'] == 'PYRO':
+            elif u_type == 'aoe' and self.data['name'].upper() == 'PYRO':
                 fx.spawn_flame_stream(self.screen_x, self.screen_y - 15, target.screen_x, target.screen_y)
                 for e in enemies:
                     if math.hypot(e.screen_x - target.screen_x, e.screen_y - target.screen_y) < 45: e.take_damage(final_dmg, fx)
@@ -195,93 +201,142 @@ class Tower:
     def draw(self, screen, energy_level=0, dark_matter_level=0):
         x, y = self.screen_x, self.screen_y
         u_type = self.data['type']
-        color = self.data['color']
+        name = self.data.get('name', '').upper()
+        
+        # Базовая форма основания (серый блок)
+        base_pts = [(x-10, y), (x+10, y), (x+8, y-15), (x-8, y-15)]
 
-        # --- 1. SOLDIER / RANGER ---
-        if u_type == 'projectile' and self.data['name'] == 'Soldier':
-            pygame.draw.rect(screen, (50, 150, 50), (x-8, y-20, 16, 16))
-            pygame.draw.circle(screen, (0, 255, 0), (x, y-12), 3)
+        # --- 1. SOLDIER (Зелёный купол + тонкое дуло) ---
+        if u_type == 'single' and name == 'SOLDIER':
+            pygame.draw.polygon(screen, (60, 60, 60), base_pts)
+            pygame.draw.circle(screen, (50, 200, 50), (x, y-15), 6)
+            bx, by = x + math.cos(self.angle)*12, y-15 + math.sin(self.angle)*12
+            pygame.draw.line(screen, (30, 30, 30), (x, y-15), (bx, by), 3)
+            pygame.draw.circle(screen, (50, 255, 50), (int(bx), int(by)), 2)
 
-        # --- 2. FLAME / INCINERATOR ---
-        elif u_type == 'aoe' and self.data['name'] == 'Pyro':
-            pygame.draw.polygon(screen, (150, 70, 0), [(x-10,y), (x+10,y), (x,y-20)])
-            pygame.draw.circle(screen, (255, 100, 0), (x, y-20), 5)
+        # --- 2. PYRO (Оранжевый верх + пламя на конце) ---
+        elif u_type == 'aoe' and name == 'PYRO':
+            pygame.draw.polygon(screen, (60, 60, 60), base_pts)
+            pygame.draw.polygon(screen, (255, 100, 0), [(x-6,y-15), (x+6,y-15), (x+4,y-22), (x-4,y-22)])
+            bx, by = x + math.cos(self.angle)*10, y-18 + math.sin(self.angle)*10
+            pygame.draw.line(screen, (50, 50, 50), (x, y-18), (bx, by), 4)
+            pygame.draw.circle(screen, (255, 200, 0), (int(bx), int(by)), 3)
 
-        # --- 3. SNIPER / MARKSMAN ---
-        elif u_type == 'projectile' and self.data['name'] == 'Sniper':
-            pygame.draw.polygon(screen, (50, 50, 150), [(x-8,y), (x+8,y), (x,y-25)])
-            pygame.draw.line(screen, (0, 0, 255), (x, y-25), (x + math.cos(self.angle)*15, y-25 + math.sin(self.angle)*15), 2)
+        # --- 3. SNIPER (Синий купол + длинное тонкое дуло) ---
+        elif u_type == 'projectile' and name == 'SNIPER':
+            pygame.draw.polygon(screen, (60, 60, 60), base_pts)
+            pygame.draw.circle(screen, (50, 50, 200), (x, y-15), 5)
+            bx, by = x + math.cos(self.angle)*18, y-15 + math.sin(self.angle)*18
+            pygame.draw.line(screen, (20, 20, 20), (x, y-15), (bx, by), 2)
+            pygame.draw.circle(screen, (100, 150, 255), (int(bx), int(by)), 2)
 
-        # --- 4. MINE / TRAP ---
+        # --- 4. MINE (Красная плоская мина на земле) ---
         elif u_type == 'trap':
-            pygame.draw.circle(screen, (100, 100, 100), (x, y-5), 8)
-            pygame.draw.circle(screen, (255, 0, 0), (x, y-5), 3)
+            pygame.draw.ellipse(screen, (80, 80, 80), (x-8, y-4, 16, 8))
+            pygame.draw.circle(screen, (255, 50, 50), (x, y-4), 4)
 
-        # --- 5. FROST / CRYO ---
+   # --- 5. FROST / CRYO (Тип 'slow') ---
         elif u_type == 'slow':
-            pygame.draw.polygon(screen, (0, 150, 255), [(x-10,y), (x+10,y), (x+5,y-15), (x-5,y-15)])
-            pygame.draw.circle(screen, (200, 255, 255), (x, y-15), 4)
+            pygame.draw.polygon(screen, (60, 60, 60), base_pts) 
+            pygame.draw.circle(screen, (0, 150, 255), (x, y-15), 5) # СИНИЙ цвет головы
+            bx, by = x + math.cos(self.angle)*10, y-15 + math.sin(self.angle)*10
+            pygame.draw.line(screen, (100, 200, 255), (x, y-15), (bx, by), 3) # ГОЛУБОЕ дуло
+            # Кристаллы льда
+            for i in range(3):
+                cx = bx + math.cos(self.angle + i)*6
+                cy = by + math.sin(self.angle + i)*6
+                pygame.draw.circle(screen, (200, 255, 255), (int(cx), int(cy)), 2)
 
-        # --- 6. CANNON / HOWITZER ---
+        # --- 6. CANNON (Серый + короткое толстое дуло) ---
         elif u_type == 'knockback':
-            pygame.draw.rect(screen, (100, 50, 50), (x-10, y-15, 20, 15))
-            pygame.draw.circle(screen, (50, 50, 50), (x, y-15), 8)
-            pygame.draw.line(screen, (0,0,0), (x, y-15), (x + math.cos(self.angle)*12, y-15 + math.sin(self.angle)*12), 4)
+            pygame.draw.polygon(screen, (60, 60, 60), base_pts)
+            pygame.draw.circle(screen, (80, 80, 80), (x, y-15), 7)
+            bx, by = x + math.cos(self.angle)*9, y-15 + math.sin(self.angle)*9
+            pygame.draw.line(screen, (40, 40, 40), (x, y-15), (bx, by), 6)
+            pygame.draw.circle(screen, (100, 100, 100), (int(bx), int(by)), 3)
 
-        # --- 7. LASER / PRISM ---
+        # --- 7. LASER (Голубой + волнистый луч) ---
         elif u_type == 'beam':
-            pygame.draw.polygon(screen, (150, 0, 150), [(x-10,y), (x+10,y), (x,y-20)])
-            pygame.draw.circle(screen, (255, 0, 255), (x, y-20), 5)
+            pygame.draw.polygon(screen, (60, 60, 60), base_pts)
+            pygame.draw.circle(screen, (100, 200, 255), (x, y-15), 5)
+            bx, by = x + math.cos(self.angle)*14, y-15 + math.sin(self.angle)*14
+            pts = []
+            for i in range(5):
+                t = i/4
+                px = x + (bx-x)*t + math.sin(t*10)*3
+                py = y-15 + (by-(y-15))*t
+                pts.append((px, py))
+            pygame.draw.lines(screen, (100, 255, 255), False, pts, 2)
 
-        # --- 8. MISSILE / ROCKETEER ---
+        # --- 8. MISSILE (Серый + оранжевые стабилизаторы) ---
         elif u_type == 'missile':
-            pygame.draw.polygon(screen, (150, 150, 0), [(x-10,y), (x+10,y), (x,y-20)])
-            pygame.draw.circle(screen, (255, 255, 0), (x, y-20), 5)
+            pygame.draw.polygon(screen, (60, 60, 60), base_pts)
+            pygame.draw.circle(screen, (100, 100, 100), (x, y-15), 6)
+            bx, by = x + math.cos(self.angle)*11, y-15 + math.sin(self.angle)*11
+            pygame.draw.line(screen, (50, 50, 50), (x, y-15), (bx, by), 4)
+            pygame.draw.polygon(screen, (255, 100, 0), [(bx-3, by-2), (bx+3, by-2), (bx, by-6)])
 
-        # --- 9. HIVE / SWARM ---
+        # --- 9. SWARM (Чёрный + вращающийся пропеллер) ---
         elif u_type == 'swarm':
-            pygame.draw.polygon(screen, (255, 200, 0), [(x-10,y), (x+10,y), (x+5,y-15), (x-5,y-15)])
-            pygame.draw.circle(screen, (0,0,0), (x, y-10), 3)
+            pygame.draw.polygon(screen, (40, 40, 40), base_pts)
+            pygame.draw.circle(screen, (20, 20, 20), (x, y-15), 6)
+            ang = pygame.time.get_ticks() * 0.015
+            for i in range(3):
+                a = ang + i * (math.pi * 2 / 3)
+                px, py = x + math.cos(a)*8, y-15 + math.sin(a)*8
+                pygame.draw.line(screen, (255, 150, 0), (x, y-15), (px, py), 2)
+            pygame.draw.circle(screen, (255, 200, 0), (x, y-15), 2)
 
-        # --- 10. G-SNIPER / PIERCER ---
+        # --- 10. PIERCE/RAILGUN (Жёлтый + длинное дуло) ---
         elif u_type == 'pierce':
-            pygame.draw.polygon(screen, (255, 215, 0), [(x-10,y), (x+10,y), (x,y-25)])
-            pygame.draw.line(screen, (255, 255, 255), (x, y-25), (x + math.cos(self.angle)*15, y-25 + math.sin(self.angle)*15), 3)
+            pygame.draw.polygon(screen, (60, 60, 60), base_pts)
+            pygame.draw.circle(screen, (255, 215, 0), (x, y-15), 5)
+            bx, by = x + math.cos(self.angle)*20, y-15 + math.sin(self.angle)*20
+            pygame.draw.line(screen, (200, 200, 0), (x, y-15), (bx, by), 3)
+            pygame.draw.circle(screen, (255, 255, 150), (int(bx), int(by)), 2)
 
-        # --- 11. HEALER / MEDIC ---
-        elif u_type == 'heal':
-            pygame.draw.polygon(screen, (80, 80, 80), [(x-10,y), (x+10,y), (x+8,y-15), (x-8,y-15)])
-            pygame.draw.polygon(screen, (255, 215, 0), [(x-8,y-15), (x+8,y-15), (x+5,y-22), (x-5,y-22)])
-            f = pygame.font.SysFont('consolas', 10, bold=True)
-            screen.blit(f.render("$", True, (0,0,0)), (x-3, y-20))
-
-        # --- 12. TESLA / COIL ---
+        # --- 11. TESLA (Чёрный треугольник + серый шар + 2 оранжевых кольца) ---
         elif u_type == 'chain':
-            pygame.draw.polygon(screen, (10, 10, 10), [(x-12,y), (x+12,y), (x,y-20)])
-            pygame.draw.circle(screen, (200, 200, 200), (x, y-20), 6)
-            pygame.draw.ellipse(screen, (255, 100, 0), (x-15, y-24, 30, 10), 2)
-            pygame.draw.ellipse(screen, (255, 100, 0), (x-6, y-32, 12, 24), 2)
+            pygame.draw.polygon(screen, (20, 20, 20), [(x-12,y), (x+12,y), (x,y-20)])
+            pygame.draw.circle(screen, (180, 180, 180), (x, y-20), 6)
+            pygame.draw.ellipse(screen, (255, 100, 0), (x-14, y-23, 28, 8), 2)
+            pygame.draw.ellipse(screen, (255, 100, 0), (x-5, y-30, 10, 20), 2)
 
-        # --- 13. VOID / SINGULARITY ---
+        # --- 12. HEALER (Серый ящик + жёлтая крышка + парящий шар) ---
+        elif u_type == 'heal':
+            pygame.draw.rect(screen, (70, 70, 70), (x-9, y-18, 18, 18))
+            pygame.draw.polygon(screen, (255, 215, 0), [(x-7,y-18), (x+7,y-18), (x+4,y-24), (x-4,y-24)])
+            orb_y = y - 28 + math.sin(pygame.time.get_ticks() * 0.005) * 3
+            pygame.draw.circle(screen, (255, 255, 150), (x, int(orb_y)), 4)
+
+        # --- 13. VOID (Синий квадрат + пульсирующая мишень) ---
         elif u_type == 'pull':
-            pygame.draw.rect(screen, (0, 0, 200), (x-8, y-24, 16, 16))
-            time_val = pygame.time.get_ticks() * 0.005
-            for i in range(1, 3):
-                r = 15 + i*10 + int(math.sin(time_val)*5)
-                col = (0, 0, 255, max(0, 200 - i*80))
+            pygame.draw.rect(screen, (30, 30, 150), (x-9, y-22, 18, 18))
+            t = pygame.time.get_ticks() * 0.003
+            for i in range(2):
+                r = 12 + i*8 + math.sin(t)*3
+                alpha = max(50, 200 - i*60)
                 s = pygame.Surface((r*2, r*2), pygame.SRCALPHA)
-                pygame.draw.circle(s, col, (r,r), r, 2)
-                screen.blit(s, (x-r, y-12-r))
+                pygame.draw.circle(s, (50, 50, 255, alpha), (r,r), r, 2)
+                screen.blit(s, (x-r, y-13-r))
 
-        # --- 14. ORBITAL / STRIKE ---
+        # --- 14. ORBITAL (Наклонный серый + красная линза + луч) ---
         elif u_type == 'strike':
-            pygame.draw.polygon(screen, (50, 50, 50), [(x-12,y), (x+12,y), (x,y-25)])
-            pygame.draw.circle(screen, (255, 0, 0), (x, y-25), 6)
+            pygame.draw.polygon(screen, (60, 60, 60), [(x-10,y), (x+10,y), (x+5,y-18), (x-5,y-18)])
+            pygame.draw.polygon(screen, (80, 80, 80), [(x-5,y-18), (x+5,y-18), (x+2,y-25), (x-2,y-25)])
+            pygame.draw.circle(screen, (255, 50, 50), (x, y-22), 5)
+            bx, by = x + math.cos(self.angle)*15, y-22 + math.sin(self.angle)*15
+            pygame.draw.line(screen, (255, 100, 100), (x, y-22), (bx, by), 2)
 
-        # --- 15. NUKE / DOOMSDAY ---
+        # --- 15. NUKE (Серый + знак радиации) ---
         elif u_type == 'nuke':
-            pygame.draw.circle(screen, (40, 0, 0), (x, y-15), 12)
-            pygame.draw.circle(screen, (255, 0, 0), (x, y-15), 6)
+            pygame.draw.polygon(screen, (60, 60, 60), base_pts)
+            pygame.draw.circle(screen, (100, 100, 100), (x, y-15), 8)
+            rad_t = pygame.time.get_ticks() * 0.001
+            for i in range(3):
+                a = i * (math.pi * 2 / 3) + rad_t
+                pygame.draw.arc(screen, (255, 50, 50), (x-6, y-21, 12, 12), a, a+1.5, 2)
+            pygame.draw.circle(screen, (255, 50, 50), (x, y-15), 2)
 
         # --- ПОЛОСКИ РЕСУРСОВ ---
         if u_type == 'pull':
@@ -291,7 +346,6 @@ class Tower:
         if u_type == 'heal':
             bar_w, bar_h = 30, 4
             pygame.draw.rect(screen, (255, 215, 0), (x-bar_w//2, y-35, bar_w, bar_h))
-
 class Enemy:
     def __init__(self, path, type_key, wave_mult=1.0, is_boss=False, boss_lvl=0):
         self.path = path; self.idx = 0; self.progress = 0; self.summon_timer = 0
@@ -350,7 +404,55 @@ class Enemy:
 
     def draw(self, screen):
         x, y = self.screen_x, self.screen_y
-        size = int(16 * self.scale)
-        pygame.draw.ellipse(screen, (0,0,0,90), (x-size, y+size, size*2, size))
-        pygame.draw.rect(screen, self.color, (x-size//2, y-size, size, size*1.5))
-        draw_health_bar(screen, x, y-size-8, size*2, self.hp, self.max_hp)
+        size = int(14 * self.scale) 
+        
+        # Эффект "шатания" при ходьбе
+        wobble = math.sin(pygame.time.get_ticks() * 0.01 + self.c) * 3
+        
+        # --- ТЕЛО ---
+        # Используем self.color из настроек врага
+        body_color = self.color
+        
+        # Тело (трапеция)
+        pts_body = [
+            (x - size//2 + wobble, y - size),      
+            (x + size//2 + wobble, y - size),      
+            (x + size, y + size//2),               
+            (x - size, y + size//2)                
+        ]
+        pygame.draw.polygon(screen, body_color, pts_body)
+        
+        # --- ГОЛОВА ---
+        head_y = y - size - 5 + wobble
+        pygame.draw.circle(screen, body_color, (int(x + wobble), int(head_y)), int(size * 0.6))
+        
+        # --- ГЛАЗА (Светящиеся) ---
+        eye_offset = size * 0.25
+        eye_size = max(2, int(size * 0.15))
+        
+        # Цвет глаз по умолчанию желтый, можно сделать зависимым от цвета тела
+        eye_color = (255, 255, 0) 
+        if body_color == (200, 50, 50): eye_color = (255, 0, 0) # Если красный - красные глаза
+        elif body_color == (80, 80, 80): eye_color = (0, 255, 255) # Если серый - синие глаза
+        
+        pygame.draw.circle(screen, eye_color, (int(x + wobble - eye_offset), int(head_y)), eye_size)
+        pygame.draw.circle(screen, eye_color, (int(x + wobble + eye_offset), int(head_y)), eye_size)
+        
+        # --- РУКИ ---
+        pygame.draw.line(screen, body_color, 
+                         (x - size//2 + wobble, y - size//2), 
+                         (x - size//2 + wobble - 5, y + size//2 - 5), 4)
+        pygame.draw.line(screen, body_color, 
+                         (x + size//2 + wobble, y - size//2), 
+                         (x + size//2 + wobble + 5, y + size//2 - 5), 4)
+
+        # --- ПОЛОСКА ЗДОРОВЬЯ ---
+        bar_w = size * 2
+        bar_h = 4
+        bar_x = x - bar_w // 2
+        bar_y = y - size * 1.5 - 10 + wobble
+        
+        pygame.draw.rect(screen, (30, 0, 0), (bar_x, bar_y, bar_w, bar_h))
+        hp_percent = self.hp / self.max_hp
+        color_hp = (255, 0, 0) if hp_percent < 0.3 else (0, 255, 0)
+        pygame.draw.rect(screen, color_hp, (bar_x, bar_y, bar_w * hp_percent, bar_h))
