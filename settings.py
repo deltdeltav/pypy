@@ -50,7 +50,7 @@ SHOP_UNITS = {
     'frost':  {'name': 'FROST',   'cost_crystals': 20, 'cost': 2200, 'dmg': 15,  'range': 6,  'rate': 15,  'color': (0, 220, 255), 'type': 'slow'},
     'tesla':  {'name': 'TESLA',   'cost_crystals': 35, 'cost': 3500, 'dmg': 40,  'range': 7,  'rate': 5,   'color': (200, 200, 255), 'type': 'chain'},
     'nuke':   {'name': 'NUKE',    'cost_crystals': 50, 'cost': 5000, 'dmg': 1000,'range': 4,  'rate': 300, 'color': (255, 50, 50),  'type': 'nuke'},
-    'hive':   {'name': 'HIVE',    'cost_crystals': 60, 'cost': 6000, 'dmg': 10,  'range': 9,  'rate': 2,   'color': (255, 255, 0), 'type': 'swarm'},
+    'hive':   {'name': 'HIVE',    'cost_crystals': 10, 'cost': 6000, 'dmg': 8,  'range': 9,  'rate': 2,   'color': (255, 255, 0), 'type': 'swarm'},
     'g_sniper': {'name': 'G-SNIPER', 'cost_crystals': 80, 'cost': 8000, 'dmg': 500, 'range': 20, 'rate': 120, 'color': (255, 215, 0), 'type': 'pierce'},
     'cannon':   {'name': 'CANNON',   'cost_crystals': 90, 'cost': 9000, 'dmg': 150, 'range': 5,  'rate': 60,  'color': (100, 100, 100), 'type': 'knockback'},
     'healer':   {'name': 'HEALER',   'cost_crystals': 100,'cost': 10000,'dmg': 0,   'range': 6,  'rate': 30,  'color': (0, 255, 100), 'type': 'heal'},
