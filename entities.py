@@ -89,14 +89,15 @@ class Projectile:
             pygame.draw.circle(screen, self.color, (int(self.x), int(self.y)), 5)
 
 class Tower:
-    def __init__(self, c, r, key):
+    def __init__(self, c, r, key, global_upgrades):
         self.c, self.r = c, r
         self.data = UNITS.get(key, SHOP_UNITS.get(key, UNITS['soldier']))
         self.cd = 0
         self.angle = 0
         self.screen_x, self.screen_y = 0, 0
-        self.dmg_mult = 1.0 + (global_upgrades['dmg'] * 0.15)
-        self.rate_mult = 1.0 + (global_upgrades['rate'] * 0.1)
+        self.global_upgrades = global_upgrades
+        self.dmg_mult = 1.0 + (self.global_upgrades['dmg'] * 0.15)
+        self.rate_mult = 1.0 + (self.global_upgrades['rate'] * 0.1)
 
     def update_pos(self, cam_x, cam_y):
         self.screen_x, self.screen_y = to_iso(self.c, self.r, cam_x, cam_y)
@@ -107,16 +108,16 @@ class Tower:
         self.screen_x, self.screen_y = to_iso(self.c, self.r, cam_x, cam_y)
         self.screen_y -= 5
         
-        # --- ПРОВЕРКА РЕЖИМА ЗАРЯДА ---
+        self.dmg_mult = 1.0 + (self.global_upgrades['dmg'] * 0.15)
+        self.rate_mult = 1.0 + (self.global_upgrades['rate'] * 0.1)
+        
         is_charging = self.data.get('charge', False)
         
         if is_charging:
-            # РЕЖИМ НАКОПЛЕНИЯ
             if self.cd < self.data['rate']:
                 self.cd += 1
                 return 
             
-            # ЕСЛИ ЗАРЯДИЛСЯ: Ищем цель и стреляем
             target = None
             range_px = self.data['range'] * TILE_W
             for e in enemies:
@@ -128,10 +129,9 @@ class Tower:
             
             if target:
                 self.fire(target, projectiles, fx, energy, dark_matter, enemies)
-                self.cd = 0 # Сброс для начала нового цикла заряда
+                self.cd = 0
                 
         else:
-            # ОБЫЧНЫЙ РЕЖИМ
             if self.cd > 0: 
                 self.cd -= 1
                 return
@@ -147,9 +147,7 @@ class Tower:
 
             if target:
                 self.fire(target, projectiles, fx, energy, dark_matter, enemies)
-                # <<< ВАЖНО: Устанавливаем кулдаун для обычных башен >>>
-                # Для обычных башен rate - это задержка между выстрелами
-                self.cd = int(self.data['rate']) 
+                self.cd = int(self.data['rate'])
 
     def fire(self, target, projectiles, fx, energy, dark_matter, enemies_list):
         """Логика стрельбы. Кулдаун теперь ставится в update()"""
