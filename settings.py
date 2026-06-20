@@ -6,6 +6,21 @@ FPS = 60
 TILE_W, TILE_H = 50, 30
 SCREEN_FLAGS = pygame.SCALED | pygame.RESIZABLE
 
+# --- КАРТА ---
+COLS, ROWS = 22, 16
+BASE_TOWER_LIMIT = 6
+
+# --- СТАРТОВЫЕ ЗНАЧЕНИЯ ---
+START_MONEY = 800
+BASE_START_MONEY = 500
+START_CRYSTALS = 0
+START_ENERGY = 100
+MAX_ENERGY = 500
+ENERGY_REGEN = 0.5
+START_DARK_MATTER = 50
+MAX_DARK_MATTER = 200
+DARK_MATTER_REGEN = 0.2
+
 # --- ЦВЕТА ---
 class Colors:
     BG_SUMMER = (15, 25, 15)
@@ -24,40 +39,48 @@ class Colors:
     VOID_PURPLE = (138, 43, 226)
     HEALER_GOLD = (255, 215, 0)
     TESLA_CYAN = (0, 255, 255)
-    
     ZOMBIE_NORMAL = (80, 180, 80)
     ZOMBIE_RUNNER = (220, 80, 80)
-    ZOMBIE_TANK   = (100, 20, 20)
+    ZOMBIE_TANK = (100, 20, 20)
     BOSS_MINI = (140, 0, 220)
     BOSS_NORM = (200, 0, 0)
     BOSS_MEGA = (220, 180, 0)
 
-# --- ДАННЫЕ ---
-START_MONEY = 800
-START_CRYSTALS = 0
-global_upgrades = {'dmg': 0, 'rate': 0, 'hp': 0, 'income': 0, 'capacity': 0}
+# --- UI КОНСТАНТЫ ---
+V_MENU_X = 10
+V_MENU_Y_START = 110
+V_BTN_W = 140
+V_BTN_H = 45
+V_GAP = 5
+V_MAX_VISIBLE = 5
+MENU_BTN_W = 90
+MENU_BTN_H = 40
+MENU_BTN_X = W - MENU_BTN_W - 10
+MENU_BTN_Y = 10
 
+# --- ЮНИТЫ ---
 UNITS = {
     'soldier': {'name': 'SOLDIER', 'cost': 100, 'dmg': 25, 'range': 5, 'rate': 30, 'color': (0, 200, 100), 'type': 'single'},
     'flame':   {'name': 'PYRO',    'cost': 350, 'dmg': 30, 'range': 2, 'rate': 25, 'color': (255, 120, 0), 'type': 'aoe'},
-    'sniper':  {'name': 'SNIPER',  'cost': 600, 'dmg': 200,'range': 14,'rate': 150,'color': (0, 120, 255), 'type': 'projectile'},
-    'mine':    {'name': 'MINE',    'cost': 180, 'dmg': 500,'range': 0, 'rate': 0,  'color': (60, 60, 60), 'type': 'trap'}
+    'sniper':  {'name': 'SNIPER',  'cost': 600, 'dmg': 200, 'range': 14, 'rate': 150, 'color': (0, 120, 255), 'type': 'projectile'},
+    'mine':    {'name': 'MINE',    'cost': 180, 'dmg': 500, 'range': 0, 'rate': 0,  'color': (60, 60, 60), 'type': 'trap'}
 }
 
 SHOP_UNITS = {
     'laser':  {'name': 'LASER',   'cost_crystals': 5,  'cost': 900,  'dmg': 80,  'range': 8,  'rate': 40,  'color': (255, 0, 255), 'type': 'beam'},
-    'missile':{'name': 'MISSILE', 'cost_crystals': 12, 'cost': 1500, 'dmg': 300, 'range': 10, 'rate': 200, 'color': (255, 100, 0), 'type': 'aoe'},
+    'missile': {'name': 'MISSILE', 'cost_crystals': 12, 'cost': 1500, 'dmg': 300, 'range': 10, 'rate': 200, 'color': (255, 100, 0), 'type': 'aoe'},
     'frost':  {'name': 'FROST',   'cost_crystals': 20, 'cost': 2200, 'dmg': 15,  'range': 6,  'rate': 15,  'color': (0, 220, 255), 'type': 'slow'},
     'tesla':  {'name': 'TESLA',   'cost_crystals': 35, 'cost': 3500, 'dmg': 40,  'range': 7,  'rate': 5,   'color': (200, 200, 255), 'type': 'chain'},
-    'nuke':   {'name': 'NUKE',    'cost_crystals': 50, 'cost': 5000, 'dmg': 1000,'range': 4,  'rate': 300, 'color': (255, 50, 50),  'type': 'nuke'},
+    'nuke':   {'name': 'NUKE',    'cost_crystals': 50, 'cost': 5000, 'dmg': 1000, 'range': 4,  'rate': 300, 'color': (255, 50, 50),  'type': 'nuke'},
     'hive':   {'name': 'HIVE',    'cost_crystals': 10, 'cost': 6000, 'dmg': 8,  'range': 9,  'rate': 2,   'color': (255, 255, 0), 'type': 'swarm'},
     'g_sniper': {'name': 'G-SNIPER', 'cost_crystals': 80, 'cost': 8000, 'dmg': 500, 'range': 20, 'rate': 120, 'color': (255, 215, 0), 'type': 'pierce'},
     'cannon':   {'name': 'CANNON',   'cost_crystals': 90, 'cost': 9000, 'dmg': 150, 'range': 5,  'rate': 60,  'color': (100, 100, 100), 'type': 'knockback'},
-    'healer':   {'name': 'HEALER',   'cost_crystals': 100,'cost': 10000,'dmg': 0,   'range': 6,  'rate': 30,  'color': (0, 255, 100), 'type': 'heal'},
-    'orbital':  {'name': 'ORBITAL',  'cost_crystals': 120,'cost': 12000,'dmg': 2000,'range': 15, 'rate': 400, 'color': (255, 255, 255), 'type': 'strike'},
-    'void':     {'name': 'VOID',     'cost_crystals': 150,'cost': 15000,'dmg': 50,  'range': 8,  'rate': 10,  'color': (50, 0, 100),  'type': 'pull'}
+    'healer':   {'name': 'HEALER',   'cost_crystals': 100, 'cost': 10000, 'dmg': 0,   'range': 6,  'rate': 30,  'color': (0, 255, 100), 'type': 'heal'},
+    'orbital':  {'name': 'ORBITAL',  'cost_crystals': 120, 'cost': 12000, 'dmg': 2000, 'range': 15, 'rate': 400, 'color': (255, 255, 255), 'type': 'strike', 'charge': True},
+    'void':     {'name': 'VOID',     'cost_crystals': 150, 'cost': 15000, 'dmg': 50,  'range': 8,  'rate': 10,  'color': (50, 0, 100),  'type': 'pull'}
 }
 
+# --- ВРАГИ ---
 ENEMIES = {
     'normal': {'hp': 120, 'speed': 0.04, 'reward': 25, 'color': Colors.ZOMBIE_NORMAL},
     'runner': {'hp': 70,  'speed': 0.10, 'reward': 35, 'color': Colors.ZOMBIE_RUNNER},
@@ -66,10 +89,11 @@ ENEMIES = {
 
 BOSS_STATS = {
     5:  {'hp': 3000, 'speed': 0.03, 'reward': 800, 'crystals': 2,  'color': Colors.BOSS_MINI, 'scale': 1.5, 'summons': False},
-    10: {'hp': 10000,'speed': 0.02, 'reward': 2500,'crystals': 5,  'color': Colors.BOSS_NORM, 'scale': 2.0, 'summons': True},
-    50: {'hp': 70000,'speed': 0.01, 'reward': 15000,'crystals': 15, 'color': Colors.BOSS_MEGA, 'scale': 3.0, 'summons': True},
+    10: {'hp': 10000, 'speed': 0.02, 'reward': 2500, 'crystals': 5,  'color': Colors.BOSS_NORM, 'scale': 2.0, 'summons': True},
+    50: {'hp': 70000, 'speed': 0.01, 'reward': 15000, 'crystals': 15, 'color': Colors.BOSS_MEGA, 'scale': 3.0, 'summons': True},
 }
 
+# --- АПГРЕЙДЫ ---
 UPGRADE_COSTS = {
     'dmg': [100, 250, 500, 1000, 2500],
     'rate': [150, 400, 800, 2000, 5000],
@@ -78,20 +102,5 @@ UPGRADE_COSTS = {
     'capacity': [300, 800, 2000, 5000, 12000]
 }
 
-LOCATIONS = [{'bg': Colors.BG_SUMMER}, {'bg': Colors.BG_MOUNTAIN}, {'bg': Colors.BG_WINTER}]
-
-# --- ЭНЕРГИЯ ---
-START_ENERGY = 100
-MAX_ENERGY = 500
-ENERGY_REGEN = 0.5  # Единиц энергии в кадр (~30 в секунду)
-
-# --- ПРОКАЧКА ЭНЕРГИИ ---
-# Стоимость каждого уровня (уровень 0 -> 1, 1 -> 2 и т.д.)
-ENERGY_UPGRADE_COSTS = [500, 1500, 4000, 10000] 
-# Бонус к максимуму энергии за каждый уровень (+100, +200...)
+ENERGY_UPGRADE_COSTS = [500, 1500, 4000, 10000]
 ENERGY_UPGRADE_BONUS = [100, 200, 400, 800]
-
-# --- ТЕМНАЯ МАТЕРИЯ (для Void) ---
-START_DARK_MATTER = 50
-MAX_DARK_MATTER = 200
-DARK_MATTER_REGEN = 0.2 # Медленная регенерация
